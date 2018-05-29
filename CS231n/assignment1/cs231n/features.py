@@ -65,7 +65,7 @@ def rgb2gray(rgb):
       gray : grayscale image
   
   """
-  return np.dot(rgb[...,:3], [0.299, 0.587, 0.144])
+  return np.dot(rgb[...,:3], [0.299, 0.587, 0.144]) #加权平均法，根据人的感知系数调节
 
 
 def hog_feature(im):
