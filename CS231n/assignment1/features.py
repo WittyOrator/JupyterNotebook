@@ -114,3 +114,71 @@ for lr, reg in sorted(results):
         lr, reg, train_accuracy, val_accuracy))
 
 print('best validation accuracy achieved during cross-validation: %f' % best_val)
+
+# Evaluate your trained SVM on the test set
+y_test_pred = best_svm.predict(X_test_feats)
+test_accuracy = np.mean(y_test == y_test_pred)
+print(test_accuracy)
+
+# An important way to gain intuition about how an algorithm works is to
+# visualize the mistakes that it makes. In this visualization, we show examples
+# of images that are misclassified by our current system. The first column
+# shows images that our system labeled as "plane" but whose true label is
+# something other than "plane".
+
+examples_per_class = 8
+classes = ['plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
+for cls, cls_name in enumerate(classes):
+    idxs = np.where((y_test != cls) & (y_test_pred == cls))[0]
+    idxs = np.random.choice(idxs, examples_per_class, replace=False)
+    for i, idx in enumerate(idxs):
+        plt.subplot(examples_per_class, len(classes), i * len(classes) + cls + 1)
+        plt.imshow(X_test[idx].astype('uint8'))
+        plt.axis('off')
+        if i == 0:
+            plt.title(cls_name)
+plt.show()
+
+# Preprocessing: Remove the bias dimension
+# Make sure to run this cell only ONCE
+print(X_train_feats.shape)
+X_train_feats = X_train_feats[:, :-1]
+X_val_feats = X_val_feats[:, :-1]
+X_test_feats = X_test_feats[:, :-1]
+
+print(X_train_feats.shape)
+
+from cs231n.classifiers.neural_net import TwoLayerNet
+
+input_dim = X_train.shape[1]
+hidden_dim = 600
+num_classes = 10
+
+net = TwoLayerNet(input_dim, hidden_dim, num_classes)
+best_net = None
+
+################################################################################
+# TODO: Train a two-layer neural network on image features. You may want to    #
+# cross-validate various parameters as in previous sections. Store your best   #
+# model in the best_net variable.                                              #
+################################################################################
+# Train the network
+stats = net.train(X_train, y_train, X_val, y_val,
+            num_iters=1000, batch_size=200,
+            learning_rate=5e-3, learning_rate_decay=0.95,
+            reg=0.25, verbose=True)
+
+# Predict on the validation set
+val_acc = (net.predict(X_val) == y_val).mean()
+print('Validation accuracy: ', val_acc)
+
+best_net = net
+################################################################################
+#                              END OF YOUR CODE                                #
+################################################################################
+
+# Run your best neural net classifier on the test set. You should be able
+# to get more than 55% accuracy.
+
+test_acc = (best_net.predict(X_test_feats) == y_test).mean()
+print(test_acc)
