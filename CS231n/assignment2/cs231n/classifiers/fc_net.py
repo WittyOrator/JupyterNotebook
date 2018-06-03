@@ -194,7 +194,8 @@ class FullyConnectedNet(object):
                 continue
             self.params['W'+str(i)] = np.random.normal(0,weight_scale,(all_dims[i-1], all_dims[i]))
             self.params['b'+str(i)] = np.zeros(all_dims[i])
-            if self.normalization == 'batchnorm' and i < len(all_dims) - 1: # batchnorm参数初始化，不包括输出层
+            if (self.normalization == 'batchnorm' or self.normalization == 'layernorm') \
+                    and i < len(all_dims) - 1: # batchnorm参数初始化，不包括输出层
                 self.params['gamma' + str(i)] = np.ones((1, all_dims[i]))
                 self.params['beta' + str(i)] = np.zeros((1, all_dims[i]))
         ############################################################################
@@ -268,6 +269,10 @@ class FullyConnectedNet(object):
                     gamma = self.params['gamma'+strid]
                     beta = self.params['beta'+strid]
                     Output, cache['Cache' + strid] = affine_bn_relu_forward(Input, Wi, bi, gamma, beta, self.bn_params[i])
+                elif self.normalization == 'layernorm':
+                    gamma = self.params['gamma'+strid]
+                    beta = self.params['beta'+strid]
+                    Output, cache['Cache' + strid] = affine_ln_relu_forward(Input, Wi, bi, gamma, beta, self.bn_params[i])
                 else:
                     Output, cache['Cache' + strid] = affine_relu_forward(Input, Wi, bi)
             Input = Output
@@ -306,6 +311,10 @@ class FullyConnectedNet(object):
                     dX, dW, db, dgamma, dbeta = affine_bn_relu_backward(dOut, cache['Cache'+strid])
                     grads['gamma' + strid] = dgamma
                     grads['beta' + strid] = dbeta
+                elif self.normalization == 'layernorm':
+                    dX, dW, db, dgamma, dbeta = affine_ln_relu_backward(dOut, cache['Cache'+strid])
+                    grads['gamma' + strid] = dgamma
+                    grads['beta' + strid] = dbeta
                 else:
                     dX,dW,db = affine_relu_backward(dOut, cache['Cache'+strid])
             grads['W'+strid] = dW + self.reg * self.params['W'+strid]
@@ -334,6 +343,26 @@ def affine_bn_relu_backward(dout, cache):
     dbn = relu_backward(dout, relu_cache)
 
     da, dgamma, dbeta = batchnorm_backward(dbn, bn_cache)
+
+    dx, dw, db = affine_backward(da, fc_cache)
+    return dx, dw, db, dgamma, dbeta
+
+# affine + layer norm + relu的组合层前向
+def affine_ln_relu_forward(x, w, b, gamma, beta, bn_param):
+    a, fc_cache = affine_forward(x, w, b)
+
+    ln, bn_cache = layernorm_forward(a, gamma, beta, bn_param)
+
+    out, relu_cache = relu_forward(ln)
+    cache = (fc_cache, bn_cache, relu_cache)
+    return out, cache
+
+# affine + layer norm + relu的组合层反向
+def affine_ln_relu_backward(dout, cache):
+    fc_cache, bn_cache, relu_cache = cache
+    dln = relu_backward(dout, relu_cache)
+
+    da, dgamma, dbeta = layernorm_backward(dln, bn_cache)
 
     dx, dw, db = affine_backward(da, fc_cache)
     return dx, dw, db, dgamma, dbeta
