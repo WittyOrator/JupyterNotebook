@@ -179,7 +179,16 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # Referencing the original paper (https://arxiv.org/abs/1502.03167)   #
         # might prove to be helpful.                                          #
         #######################################################################
-        pass
+        mean = np.mean(x,axis=0,keepdims=True) # (1,D)，训练用的mean
+        var = np.var(x,axis=0,keepdims=True) # (1,D)，训练用的方差
+
+        x_norm = (x - mean) / np.sqrt(var + eps) # (N,D)，归一化
+        out = x_norm*gamma+beta # (gamma:(D,), beta:(D,), out:(N,D))，调整到想要的mean和var
+
+        running_mean = momentum*running_mean + (1-momentum)*mean #(1, D)，测试用的mean
+        running_var = momentum*running_var + (1-momentum)*var #(1,D)，测试用的方差
+
+        cache = (x,mean,var,x_norm,beta,gamma,eps) # 所有BP要用的中间变量
         #######################################################################
         #                           END OF YOUR CODE                          #
         #######################################################################
@@ -190,7 +199,9 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # then scale and shift the normalized data using gamma and beta.      #
         # Store the result in the out variable.                               #
         #######################################################################
-        pass
+        # 测试时做同样的归一化和调整
+        x_norm = (x-running_mean)/np.sqrt(running_var+eps)
+        out = x_norm*gamma+beta
         #######################################################################
         #                          END OF YOUR CODE                           #
         #######################################################################
@@ -228,7 +239,24 @@ def batchnorm_backward(dout, cache):
     # Referencing the original paper (https://arxiv.org/abs/1502.03167)       #
     # might prove to be helpful.                                              #
     ###########################################################################
-    pass
+    (x, mean, var, x_norm, beta, gamma, eps) = cache
+    # out = x_norm*gamma+beta，这个正向代码时gamma和beta进行了广播
+    dbeta = np.sum(dout, axis=0, keepdims=True) # （1，D)，这里sum因为广播
+    dgamma = np.sum(dout*x_norm, axis=0, keepdims=True) # (1,D)，这里sum因为广播
+    dx_norm = dout*gamma #（N,D)
+    ### 下面的求dvar,dmean,dx有些麻烦
+    # dvar可以直接通过求导公式计算
+    dvar = np.sum(dx_norm * -1.0/2*(x - mean)/(var + eps)**(3.0/2), axis=0, keepdims=True)
+    # dmean有两个部分，var也是对于mean的函数
+    N = x.shape[0]
+    dmean1 = np.sum(dx_norm * -1.0/np.sqrt(var + eps),axis=0,keepdims=True)
+    dmean2_var = dvar * -2.0/N*np.sum(x - mean,axis=0,keepdims=True)
+    dmean = dmean1 + dmean2_var
+    # dx有三个部分，meam和var都是对x的函数
+    dx1 = dx_norm * 1.0/np.sqrt(var + eps)
+    dx2_mean = dmean * 1.0/N # (1,D)
+    dx3_var = dvar * 2.0/N*(x-mean)
+    dx = dx1 + dx2_mean + dx3_var
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -259,7 +287,20 @@ def batchnorm_backward_alt(dout, cache):
     # should be able to compute gradients with respect to the inputs in a     #
     # single statement; our implementation fits on a single 80-character line.#
     ###########################################################################
-    pass
+    (x, mean, var, x_norm, beta, gamma, eps) = cache
+    # out = x_norm*gamma+beta，这个正向代码时gamma和beta进行了广播
+    dbeta = np.sum(dout, axis=0, keepdims=True)  # （1，D)，这里sum因为广播
+    dgamma = np.sum(dout * x_norm, axis=0, keepdims=True)  # (1,D)，这里sum因为广播
+    dx_norm = dout * gamma  # （N,D)
+    ### 这题不想做了，写在一起让编译器自己优化吧
+    # dvar
+    dvar = np.sum(dx_norm * -1.0 / 2 * (x - mean) / (var + eps) ** (3.0 / 2), axis=0, keepdims=True)
+    # dmean
+    N = x.shape[0]
+    dmean = (np.sum(dx_norm * -1.0 / np.sqrt(var + eps), axis=0, keepdims=True)) +\
+            (dvar * -2.0 / N * np.sum(x - mean, axis=0, keepdims=True))
+    # dx
+    dx = (dx_norm * 1.0 / np.sqrt(var + eps)) + (dmean * 1.0 / N) + (dvar * 2.0 / N * (x - mean))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -301,7 +342,19 @@ def layernorm_forward(x, gamma, beta, ln_param):
     # transformations you could perform, that would enable you to copy over   #
     # the batch norm code and leave it almost unchanged?                      #
     ###########################################################################
-    pass
+    ### 这玩意就是把batchnorm竖过来用纬度Dimension做归一化
+    xT = x.T # (D,N)
+
+    mean = np.mean(xT, axis=0, keepdims=True)  # (1,N)
+    var = np.var(xT, axis=0, keepdims=True)  # (1,N)
+
+    xT_norm = (xT - mean) / np.sqrt(var + eps)  # (D,N)，归一化
+
+    x_norm = xT_norm.T # 归一化后还原为(N,D)
+
+    out = x_norm * gamma + beta  # (gamma:(D,), beta:(D,), out:(N,D))，调整到想要的mean和var
+
+    cache = (x, mean, var, x_norm, beta, gamma, eps) # 注意这里mean,var是(1,N)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -332,7 +385,32 @@ def layernorm_backward(dout, cache):
     # implementation of batch normalization. The hints to the forward pass    #
     # still apply!                                                            #
     ###########################################################################
-    pass
+    (x, mean, var, x_norm, beta, gamma, eps) = cache # 注意这里mean,var是(1,N)
+    # dbeta,dgamma,dx_norm的计算不变
+    dbeta = np.sum(dout, axis=0, keepdims=True)
+    dgamma = np.sum(dout * x_norm, axis=0, keepdims=True)
+    dx_norm = dout * gamma  # （N,D)
+
+    ## 先转置
+    x = x.T # (D,N)
+    dx_norm = dx_norm.T # (D,N)
+
+    ### 和batchnorm一样
+    # dvar可以直接通过求导公式计算
+    dvar = np.sum(dx_norm * -1.0 / 2 * (x - mean) / (var + eps) ** (3.0 / 2), axis=0, keepdims=True)
+    # dmean有两个部分，var也是对于mean的函数
+    N = x.shape[0]
+    dmean1 = np.sum(dx_norm * -1.0 / np.sqrt(var + eps), axis=0, keepdims=True)
+    dmean2_var = dvar * -2.0 / N * np.sum(x - mean, axis=0, keepdims=True)
+    dmean = dmean1 + dmean2_var
+    # dx有三个部分，meam和var都是对x的函数
+    dx1 = dx_norm * 1.0 / np.sqrt(var + eps)
+    dx2_mean = dmean * 1.0 / N  # (1,D)
+    dx3_var = dvar * 2.0 / N * (x - mean)
+    dx = dx1 + dx2_mean + dx3_var
+
+    # 还原dx
+    dx = dx.T  # (N,D)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
