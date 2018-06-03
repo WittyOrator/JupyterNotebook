@@ -275,6 +275,9 @@ class FullyConnectedNet(object):
                     Output, cache['Cache' + strid] = affine_ln_relu_forward(Input, Wi, bi, gamma, beta, self.bn_params[i])
                 else:
                     Output, cache['Cache' + strid] = affine_relu_forward(Input, Wi, bi)
+                # drop out
+                if(self.use_dropout):
+                    Output, cache['Dropout' + strid] = dropout_forward(Output, self.dropout_param)
             Input = Output
         scores = Input
         ############################################################################
@@ -307,6 +310,9 @@ class FullyConnectedNet(object):
             if i == self.num_layers - 1: # 输出层没有激活函数
                 dX,dW,db = affine_backward(dOut, cache['Cache'+strid])
             else:
+                # dropout
+                if self.use_dropout:
+                    dOut = dropout_backward(dOut, cache['Dropout' + strid])
                 if self.normalization == 'batchnorm':
                     dX, dW, db, dgamma, dbeta = affine_bn_relu_backward(dOut, cache['Cache'+strid])
                     grads['gamma' + strid] = dgamma
