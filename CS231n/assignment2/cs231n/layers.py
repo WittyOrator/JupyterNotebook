@@ -535,7 +535,21 @@ def conv_forward_naive(x, w, b, conv_param):
     # TODO: Implement the convolutional forward pass.                         #
     # Hint: you can use the function np.pad for padding.                      #
     ###########################################################################
-    pass
+    N,C,HX,WX = x.shape # 样本数,通道数,样本空间高度,样本空间宽度
+    F,C,HF,WF = w.shape # 滤波器数量,通道数,滤波器空间高度,滤波器空间宽度
+    pad = conv_param['pad'] # 0填充数量
+    stride = conv_param['stride'] # 步长
+    assert (HX + 2*pad - HF)%stride == 0 # 整除才Fit
+    assert (WX + 2*pad - WF) % stride == 0  # 整除才Fit
+    HO = int((HX + 2*pad - HF)/stride + 1) # 输出空间高度
+    WO = int((WX + 2*pad - WF)/stride + 1) # 输出空间宽度
+    out = np.zeros((N,F,HO,WO)) # 输出
+    x_pad = np.pad(x, ((0,0),(0,0),(pad,pad),(pad,pad)),'constant') # 0填充
+    for i in range(N): # 循环样本
+        for f in range(F): # 循环滤波器
+            for r in range(HO):
+                for c in range(WO):
+                    out[i,f,r,c] = np.sum(w[f,:,:,:] * x_pad[i,:,r*stride:r*stride+HF,c*stride:c*stride+WF]) + b[f]
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -560,7 +574,30 @@ def conv_backward_naive(dout, cache):
     ###########################################################################
     # TODO: Implement the convolutional backward pass.                        #
     ###########################################################################
-    pass
+    # 原理参考 http://www.heibanke.com/2016/10/11/conv_layer_forward_backward/
+    x, w, b, conv_param = cache
+    N,F,HO,WO = dout.shape
+    F,C,HF,WF = w.shape
+    N,C,HX,WX = x.shape
+    pad = conv_param['pad'] # 0填充数量
+    stride = conv_param['stride'] # 步长
+
+    dx = np.zeros_like(x)
+    dw = np.zeros_like(w)
+    db = np.zeros_like(b)
+    x_pad = np.pad(x, ((0,0), (0,0), (pad,pad), (pad,pad)), 'constant')  # 0填充
+    dx_pad = np.pad(dx, ((0,0), (0,0), (pad,pad), (pad,pad)), 'constant')  # 0填充
+    db = np.sum(dout, axis=(0,2,3))
+
+    for i in range(N):
+        for r in range(HO):
+            for c in range(WO):
+                x_window = x_pad[i, :, r * stride:r * stride + HF, c * stride:c * stride + WF]
+                for f in range(F):
+                    dw[f] += dout[i,f,r,c] * x_window
+                    dx_pad[i,:,r*stride:r*stride+HF,c*stride:c*stride+WF] += dout[i,f,r,c] * w[f]
+
+    dx = dx_pad[:,:,pad:-pad,pad:-pad]
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -590,7 +627,19 @@ def max_pool_forward_naive(x, pool_param):
     ###########################################################################
     # TODO: Implement the max-pooling forward pass                            #
     ###########################################################################
-    pass
+    N,C,HX,WX = x.shape
+    HP = pool_param['pool_height']
+    WP = pool_param['pool_width']
+    stride = pool_param['stride']
+    HO = int((HX - HP)/stride + 1)
+    WO = int((WX - WP)/stride + 1)
+    out = np.zeros((N,C,HO,WO))
+    out_max_idx = np.zeros((N,C,HO,WO))# 存储最大值位置
+    for i in range(N): # 循环样本
+        for ch in range(C):
+            for r in range(HO):
+                for c in range(WO):
+                    out[i,ch,r,c] = np.max(x[i,ch,r*stride:r*stride+HP,c*stride:c*stride+WP])
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -613,7 +662,24 @@ def max_pool_backward_naive(dout, cache):
     ###########################################################################
     # TODO: Implement the max-pooling backward pass                           #
     ###########################################################################
-    pass
+    x, pool_param = cache
+    N, C, HX, WX = x.shape
+    N, C, HO, WO = dout.shape
+    HP = pool_param['pool_height']
+    WP = pool_param['pool_width']
+    stride = pool_param['stride']
+
+    dx = np.zeros_like(x)
+
+    for i in range(N): # 循环样本
+        for ch in range(C):
+            for r in range(HO):
+                for c in range(WO):
+                    x_window = x[i,ch,r*stride:r*stride+HP,c*stride:c*stride+WP]
+                    x_max_mask = np.zeros_like(x_window)
+                    max_index = np.argmax(x_window)
+                    x_max_mask[int(max_index/WP),int(max_index%WP)] = 1
+                    dx[i,ch,r*stride:r*stride+HP,c*stride:c*stride+WP] = dout[i,ch,r,c] * x_max_mask
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
