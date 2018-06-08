@@ -1,1 +1,1 @@
-# JupyterNotebook Assignments
+# Jupyter Notebook Assignments
