@@ -70,6 +70,8 @@ def image_from_url(url):
         print('URL Error: ', e.reason, url)
     except urllib.error.HTTPError as e:
         print('HTTP Error: ', e.code, url)
+    except: # 缓存文件正在使用无法关闭
+        return img
 
 
 def load_image(filename, size=None):
