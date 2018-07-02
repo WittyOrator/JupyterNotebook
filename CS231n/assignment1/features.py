@@ -74,8 +74,8 @@ X_test_feats = np.hstack([X_test_feats, np.ones((X_test_feats.shape[0], 1))])
 
 from cs231n.classifiers.linear_classifier import LinearSVM
 
-learning_rates = [1e-9, 1e-8, 1e-7]
-regularization_strengths = [5e4, 5e5, 5e6]
+learning_rates = [1e-7, 1.5e-7, 2e-7]
+regularization_strengths = [5e4, 6e5, 7e5, 1e5, 5e5]
 
 results = {}
 best_val = -1
@@ -94,10 +94,10 @@ from cs231n.classifiers import LinearSVM
 for lr in learning_rates:
     for reg in regularization_strengths:
         svm = LinearSVM()
-        svm.train(X_train, y_train, learning_rate=lr, reg=reg, num_iters=1000, verbose=False)
-        y_train_pred = svm.predict(X_train)
+        svm.train(X_train_feats, y_train, learning_rate=lr, reg=reg, num_iters=1000, verbose=False)
+        y_train_pred = svm.predict(X_train_feats)
         train_accuracy = np.mean(y_train == y_train_pred)
-        y_val_pred = svm.predict(X_val)
+        y_val_pred = svm.predict(X_val_feats)
         val_accuracy = np.mean(y_val == y_val_pred)
         results[(lr, reg)] = (train_accuracy, val_accuracy)
         if best_val < val_accuracy:
